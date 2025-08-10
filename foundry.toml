@@ -2,6 +2,14 @@
 src = "src"
 out = "out"
 libs = ["lib"]
+solc_version = "0.8.24"
+# remappings = [
+#     "@account-abstraction/contracts/=lib/account-abstraction/contracts/",
+#     "@openzeppelin/contracts=lib/openzeppelin-contracts/",
+# ]
+
+is-system = true
+
 
 # remappings = ["@eth-infinitism/contracts/=lib/account-abstraction/contracts/","@openzeppelin/contracts=lib/openzeppelin-contracts/"]
 
