@@ -8,11 +8,8 @@ import {ZkSyncMinimalAccount} from "../../src/zkSync/ZkSyncMinimalAccount.sol";
 import {BOOTLOADER_FORMAL_ADDRESS} from "lib/foundry-era-contracts/src/system-contracts/contracts/Constants.sol";
 import {Transaction, MemoryTransactionHelper} from "lib/foundry-era-contracts/src/system-contracts/contracts/libraries/MemoryTransactionHelper.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
-import {MessageHashUtils} from "lib/openzeppelin-contracts/contracts/utils/cryptography/MessageHashUtils.sol";
 
 contract ZkSyncMinimalAccountTest is Test {
-    using MessageHashUtils for bytes32;
-
     ZkSyncMinimalAccount public zkSyncMinimalAccount;
     ERC20Mock public usdc;
     bytes32 constant EMPTY_BTYES32 = bytes32(0);
@@ -25,7 +22,7 @@ contract ZkSyncMinimalAccountTest is Test {
         zkSyncMinimalAccount = new ZkSyncMinimalAccount();
         zkSyncMinimalAccount.transferOwnership(ANVIL_DEFAULT_ACCOUNT);
         usdc = new ERC20Mock();
-        vm.deal(address(zkSyncMinimalAccount),AMOUNT);
+        vm.deal(address(zkSyncMinimalAccount), AMOUNT);
     }
 
     function test_ZkOwnerCanExecuteCommands() public {
@@ -111,12 +108,13 @@ contract ZkSyncMinimalAccountTest is Test {
         _signTransaction(transaction);
         // Act
         vm.prank(BOOTLOADER_FORMAL_ADDRESS);
-        bytes4 magic=zkSyncMinimalAccount.validateTransaction(
+        bytes4 magic = zkSyncMinimalAccount.validateTransaction(
             EMPTY_BTYES32,
             EMPTY_BTYES32,
-            transaction);
+            transaction
+        );
         // Assert
-        assertEq(magic,ACCOUNT_VALIDATION_SUCCESS_MAGIC);
+        assertEq(magic, ACCOUNT_VALIDATION_SUCCESS_MAGIC);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -155,10 +153,7 @@ contract ZkSyncMinimalAccountTest is Test {
     function _signTransaction(
         Transaction memory transaction
     ) internal view returns (Transaction memory) {
-        bytes32 unsigedTransactionHash = MemoryTransactionHelper.encodeHash(
-            transaction
-        );
-        bytes32 digest = unsigedTransactionHash.toEthSignedMessageHash();
+        bytes32 digest = MemoryTransactionHelper.encodeHash(transaction);
         uint8 v;
         bytes32 r;
         bytes32 s;
