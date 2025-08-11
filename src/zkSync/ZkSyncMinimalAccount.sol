@@ -21,9 +21,11 @@ import {
 } from "lib/foundry-era-contracts/src/system-contracts/contracts/Constants.sol";
 import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import {ECDSA} from "lib/openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "lib/openzeppelin-contracts/contracts/utils/cryptography/MessageHashUtils.sol";
 
 contract ZkSyncMinimalAccount is IAccount, Ownable {
     using MemoryTransactionHelper for Transaction;
+    using MessageHashUtils for bytes32;
 
     error ZkSyncMinimalAccount__NotEnoughBalanceToPayForTransaction();
     error ZkSyncMinimalAccount__NotFromBootloaderOrOwner();
@@ -61,7 +63,7 @@ contract ZkSyncMinimalAccount is IAccount, Ownable {
         bytes32, /* _txHash */
         bytes32, /*  _suggestedSignedHash */
         Transaction memory _transaction
-    ) external payable {
+    ) external payable requireFromBootLoaderOrOwner {
         _executeTransaction(_transaction);
     }
 
@@ -106,7 +108,7 @@ contract ZkSyncMinimalAccount is IAccount, Ownable {
             revert ZkSyncMinimalAccount__NotEnoughBalanceToPayForTransaction();
         }
         bytes32 txHash = _transaction.encodeHash();
-        address signer = ECDSA.recover(txHash, _transaction.signature);
+        address signer = ECDSA.recover(txHash.toEthSignedMessageHash(), _transaction.signature);
         if (signer == owner()) {
             magic = ACCOUNT_VALIDATION_SUCCESS_MAGIC;
         } else {

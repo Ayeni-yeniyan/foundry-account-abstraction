@@ -3,26 +3,32 @@
 pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
+import {ACCOUNT_VALIDATION_SUCCESS_MAGIC, IAccount} from "lib/foundry-era-contracts/src/system-contracts/contracts/interfaces/IAccount.sol";
 import {ZkSyncMinimalAccount} from "../../src/zkSync/ZkSyncMinimalAccount.sol";
-import {Transaction} from "lib/foundry-era-contracts/src/system-contracts/contracts/libraries/MemoryTransactionHelper.sol";
-// import {HelperConfig} from "../../script/HelperConfig.s.sol";
-// import {SendPackedUserOp, PackedUserOperation, IEntryPoint} from "../../script/SendPackedUserOp.s.sol";
+import {BOOTLOADER_FORMAL_ADDRESS} from "lib/foundry-era-contracts/src/system-contracts/contracts/Constants.sol";
+import {Transaction, MemoryTransactionHelper} from "lib/foundry-era-contracts/src/system-contracts/contracts/libraries/MemoryTransactionHelper.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
-// import {ECDSA} from "lib/openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol";
-// import {MessageHashUtils} from "lib/openzeppelin-contracts/contracts/utils/cryptography/MessageHashUtils.sol";
+import {MessageHashUtils} from "lib/openzeppelin-contracts/contracts/utils/cryptography/MessageHashUtils.sol";
 
 contract ZkSyncMinimalAccountTest is Test {
+    using MessageHashUtils for bytes32;
+
     ZkSyncMinimalAccount public zkSyncMinimalAccount;
     ERC20Mock public usdc;
     bytes32 constant EMPTY_BTYES32 = bytes32(0);
     uint256 constant AMOUNT = 1e18;
+    address public unknown = makeAddr("UNKNOWN");
+    address public ANVIL_DEFAULT_ACCOUNT =
+        0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
 
     function setUp() public {
         zkSyncMinimalAccount = new ZkSyncMinimalAccount();
+        zkSyncMinimalAccount.transferOwnership(ANVIL_DEFAULT_ACCOUNT);
         usdc = new ERC20Mock();
+        vm.deal(address(zkSyncMinimalAccount),AMOUNT);
     }
 
-    function test_OwnerCanExecuteCommands() public {
+    function test_ZkOwnerCanExecuteCommands() public {
         // Arrange
         address dest = address(usdc);
         uint256 value = 0;
@@ -51,77 +57,68 @@ contract ZkSyncMinimalAccountTest is Test {
         assertEq(usdc.balanceOf(address(zkSyncMinimalAccount)), AMOUNT);
     }
 
-    function test_NonOwnerReverts() public {
-        // // Arrange
-        // assertEq(usdc.balanceOf(address(minimalAccount)), 0);
-        // address dest = address(usdc);
-        // uint256 value = 0;
-        // bytes memory functionData = abi.encodeWithSelector(ERC20Mock.mint.selector, address(minimalAccount), AMOUNT);
-        // // Act
-        // vm.expectRevert(abi.encodeWithSelector(MinimalAccount.MinimalAccount__NotFromEntryPointOrOwner.selector));
-        // vm.prank(unknown);
-        // minimalAccount.execute(dest, value, functionData);
+    function test_ZkNonOwnerReverts() public {
+        // Arrange
+        assertEq(usdc.balanceOf(address(zkSyncMinimalAccount)), 0);
+        address dest = address(usdc);
+        uint256 value = 0;
+        bytes memory functionData = abi.encodeWithSelector(
+            ERC20Mock.mint.selector,
+            address(zkSyncMinimalAccount),
+            AMOUNT
+        );
+        Transaction memory transaction = _createUnsignedTransaction(
+            unknown,
+            113,
+            dest,
+            value,
+            functionData
+        );
+        // Act
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ZkSyncMinimalAccount
+                    .ZkSyncMinimalAccount__NotFromBootloaderOrOwner
+                    .selector
+            )
+        );
+        vm.prank(unknown);
+        zkSyncMinimalAccount.executeTransaction(
+            EMPTY_BTYES32,
+            EMPTY_BTYES32,
+            transaction
+        );
     }
 
-    function test_RecoverSignedOp() public {
-        // // Arrange
-        // assertEq(usdc.balanceOf(address(minimalAccount)), 0);
-        // address dest = address(usdc);
-        // uint256 value = 0;
-        // bytes memory functionData = abi.encodeWithSelector(ERC20Mock.mint.selector, address(minimalAccount), AMOUNT);
-        // bytes memory executeCalldata =
-        //     abi.encodeWithSelector(MinimalAccount.execute.selector, dest, value, functionData);
-        // PackedUserOperation memory packedUserOp =
-        //     sendPackedUserOp.generateSignedUserOperation(executeCalldata, config.getConfig(), address(minimalAccount));
-        // bytes32 userOperationHash = IEntryPoint(config.getConfig().entryPoint).getUserOpHash(packedUserOp);
-        // // Act
-        // address actualSigner = ECDSA.recover(userOperationHash.toEthSignedMessageHash(), packedUserOp.signature);
-        // // Assert
-        // assertEq(actualSigner, minimalAccount.owner());
+    function test_ZkValidationTransaction() public {
+        // Arrange
+        assertEq(usdc.balanceOf(address(zkSyncMinimalAccount)), 0);
+        address dest = address(usdc);
+        uint256 value = 0;
+        address owner = zkSyncMinimalAccount.owner();
+        bytes memory functionData = abi.encodeWithSelector(
+            ERC20Mock.mint.selector,
+            address(zkSyncMinimalAccount),
+            AMOUNT
+        );
+        Transaction memory transaction = _createUnsignedTransaction(
+            owner,
+            113,
+            dest,
+            value,
+            functionData
+        );
+        _signTransaction(transaction);
+        // Act
+        vm.prank(BOOTLOADER_FORMAL_ADDRESS);
+        bytes4 magic=zkSyncMinimalAccount.validateTransaction(
+            EMPTY_BTYES32,
+            EMPTY_BTYES32,
+            transaction);
+        // Assert
+        assertEq(magic,ACCOUNT_VALIDATION_SUCCESS_MAGIC);
     }
 
-    function test_ValidationOfUserOps() public {
-        // // Arrange
-        // assertEq(usdc.balanceOf(address(minimalAccount)), 0);
-        // address dest = address(usdc);
-        // uint256 value = 0;
-        // bytes memory functionData = abi.encodeWithSelector(ERC20Mock.mint.selector, address(minimalAccount), AMOUNT);
-        // bytes memory executeCalldata =
-        //     abi.encodeWithSelector(MinimalAccount.execute.selector, dest, value, functionData);
-        // PackedUserOperation memory packedUserOp =
-        //     sendPackedUserOp.generateSignedUserOperation(executeCalldata, config.getConfig(), address(minimalAccount));
-        // bytes32 userOperationHash = IEntryPoint(config.getConfig().entryPoint).getUserOpHash(packedUserOp);
-        // uint256 missingAccountFunds = 1e18;
-        // // Act
-        // vm.prank(config.getConfig().entryPoint);
-        // uint256 validationData = minimalAccount.validateUserOp(packedUserOp, userOperationHash, missingAccountFunds);
-        // assertEq(validationData, 0);
-    }
-
-    function test_EntryPointCanExecute() public {
-        // // Arrange
-        // assertEq(usdc.balanceOf(address(minimalAccount)), 0);
-        // address dest = address(usdc);
-        // uint256 value = 0;
-        // bytes memory functionData = abi.encodeWithSelector(ERC20Mock.mint.selector, address(minimalAccount), AMOUNT);
-        // bytes memory executeCalldata =
-        //     abi.encodeWithSelector(MinimalAccount.execute.selector, dest, value, functionData);
-        // HelperConfig.NetworkConfig memory configData = config.getConfig();
-        // // DEBUG: Check the account state before creating UserOp
-        // console.log("MinimalAccount address:", address(minimalAccount));
-        // console.log("EntryPoint address:", configData.entryPoint);
-        // PackedUserOperation memory packedUserOp =
-        //     sendPackedUserOp.generateSignedUserOperation(executeCalldata, configData, address(minimalAccount));
-        // PackedUserOperation[] memory ops = new PackedUserOperation[](1);
-        // ops[0] = packedUserOp;
-        // vm.deal(address(minimalAccount), 1e18);
-        // // Act
-        // console.log("EntryPoint address: ", configData.entryPoint);
-        // vm.prank(randomUser);
-        // IEntryPoint(configData.entryPoint).handleOps(ops, payable(randomUser));
-        // // Assert
-        // assertEq(usdc.balanceOf(address(minimalAccount)), AMOUNT);
-    }
     /*//////////////////////////////////////////////////////////////
                                 HELPERS
     //////////////////////////////////////////////////////////////*/
@@ -132,7 +129,7 @@ contract ZkSyncMinimalAccountTest is Test {
         address to,
         uint256 value,
         bytes memory data
-    ) internal returns (Transaction memory transaction) {
+    ) internal view returns (Transaction memory transaction) {
         uint256 nonce = vm.getNonce(address(zkSyncMinimalAccount));
         bytes32[] memory factoryDeps = new bytes32[](0);
         transaction = Transaction({
@@ -153,5 +150,22 @@ contract ZkSyncMinimalAccountTest is Test {
             paymasterInput: hex"",
             reservedDynamic: hex""
         });
+    }
+
+    function _signTransaction(
+        Transaction memory transaction
+    ) internal view returns (Transaction memory) {
+        bytes32 unsigedTransactionHash = MemoryTransactionHelper.encodeHash(
+            transaction
+        );
+        bytes32 digest = unsigedTransactionHash.toEthSignedMessageHash();
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+        uint256 ANVIL_DEFAULT_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
+        // sign it
+        (v, r, s) = vm.sign(ANVIL_DEFAULT_KEY, digest);
+        transaction.signature = abi.encodePacked(r, s, v);
+        return transaction;
     }
 }
