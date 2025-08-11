@@ -91,11 +91,11 @@ contract ZkSyncMinimalAccount is IAccount, Ownable {
         Transaction memory _transaction
     ) external payable {}
 
-    function _validateTransaction(Transaction memory _transaction) internal  returns (bytes4 magic) {
-        uint32 gas=Utils.safeCastToU32( uint32(gasleft()));
+    function _validateTransaction(Transaction memory _transaction) internal returns (bytes4 magic) {
+        uint32 gas = Utils.safeCastToU32(uint32(gasleft()));
         // Increase nonce
         SystemContractsCaller.systemCallWithPropagatedRevert(
-           gas,
+            gas,
             address(NONCE_HOLDER_SYSTEM_CONTRACT),
             0,
             abi.encodeCall(INonceHolder.incrementMinNonceIfEquals, (_transaction.nonce))
